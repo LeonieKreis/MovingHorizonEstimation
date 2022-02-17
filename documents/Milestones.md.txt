@@ -1,0 +1,31 @@
+First I want to consider a simple version of MHE with RTI. 
+
+Hence I first consider the setting with:
+- no algebraic variables 
+- no state noise (only measurement noise)
+- all measurement noises have the same covariance, hence V_k=V for all k.
+- ODE can have controls in the setting with nmpc
+- No further parameters
+- fixed end time
+
+As an application I would use
+- the pyridine example for MHE parameter estimation without nmpc
+- the pendulum example for MHE with nmpc, where the unknown parameter 
+is e.g. the friction constant (here I maybe have to reformulate the ODE such that it takes the friction into account.....)
+
+I want to implement MHE with the classical GGN-rti step and for better performance also with one ipopt step
+
+MS1: Implement the arrival cost
+MS2: Implement constructor of multiple shooting setting -> maybe define again parametric s.t. F1(w,arr,y_new)
+MS3: Implement MHE-RTI with ipopt and GGN
+MS4: Apply to double-pendulum without controls and friction constants as parameters. use h=id as in project 1
+
+
+Setup for the MHE with the double pendulum (simlpest case- no controls):
+- set predef. parameters (friction coefficients), simulate with these, generate perturbed measurements
+- use double pendulum ode
+- set u = 0 everywhere
+- start with pendulum close to top
+- measure the states -> h(x)=x
+
+-> di ipy widget comparison of true trajectory, pertrubed one and optimized one (as in symplectic seminar)
