@@ -32,7 +32,7 @@ def animate_pendulum(gifname, ss):
     #t = np.arange(0, t_stop, dt)
 
     fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(autoscale_on=False, xlim=(-1, 1), ylim=(-1.3, 1.3))
+    ax = fig.add_subplot(autoscale_on=False, xlim=(-1.5, 1.5), ylim=(-1.3, 1.3))
     ax.set_aspect('equal')
     ax.grid()
 
