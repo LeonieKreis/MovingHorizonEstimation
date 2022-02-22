@@ -40,11 +40,63 @@ def generate_meas(x, p, xdot, T, sigma, p_true, M, x0):
     meas = meas_exact + noise
     return(meas)
 
-def arrival_cost_values(x_opt, p_opt, last_y, last_P, last_W):
-    print('Arrival cost not implemented yet!')
-    P = 0
-    xandpbar = 0
-    return P, xandpbar
+def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W):
+    #print('Arrival cost not implemented yet!')
+    n = x.shape[0]
+    m = p.shape[0]
+    
+    x_now = x_opt[0:n] # x*(t_L)
+    p_now = p_opt # p*
+    #compute x*(t_L+1)
+    dae = {'x':x, 'p':p, 'ode':xdot} 
+    opts = {'t0':0, 'tf':T/N}  
+    F = integrator('F', 'cvodes', dae, opts)
+    x_plus1 = F(x0=x_now,p=p_now)['xf'] #x*(t_L+1)
+    # compute X_x, X_p
+    x00 = MX.sym('x00',n)
+    p00 = MX.sym('p00',m)
+    X_x_exp = jacobian(F(x0=x00,p=p00)['xf'],x00)
+    X_p_exp = jacobian(F(x0=x00,p=p00)['xf'],p00)
+    X_x = Function('X_x',[x00,p00],[X_x_exp])
+    X_p = Function('X_p',[x00,p00],[X_p_exp]) # x00 later x_plus1 p00 later p_now
+    H_x = X_x
+    H_p = X_p
+    #print('X_x',X_x(x_plus1,p_now).shape)
+    #print('X_p',X_p(x_plus1,p_now).shape)
+    # setup M
+    zeros_or = np.zeros((n+m,n+m))
+    zeros_mr = np.zeros((n,n+m))
+    c2 = np.concatenate((np.concatenate((zeros_or,zeros_mr)),last_W))
+    #print(c2.shape)
+    m_l = -1*(np.concatenate((last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now)),axis=1))
+    #print(m_l.shape)
+    b_row1 = np.concatenate((X_x(x_plus1,p_now),X_p(x_plus1,p_now)),axis=1)
+    #print(b_row1.shape)
+    b_row22 = np.concatenate((np.zeros(n),np.ones(m)))
+    #print(b_row22.shape)
+    b_row2 = np.reshape(b_row22,(1,m+n))
+    #print('brow2',b_row2.shape)
+    blocks = np.concatenate((b_row1,b_row2))
+    lo_l = -1*(last_W@blocks)
+    c1 = np.concatenate((np.concatenate((last_P,m_l)),lo_l))
+    M_num = np.concatenate((c1,c2),axis = 1)
+    M = SX(M_num)
+    #print(M.shape)
+    Q,R = qr(M)
+    R2 = R[n+m:2*(n+m),n+m:2*(n+m)]
+    #print('R2.shape',R2.shape)
+    R2_inv = inv(R2)
+    h_tilde = x_plus1- X_x(x_plus1,p_now)@x_now - X_p(x_plus1,p_now)@p_now
+    rho2 = last_V@(last_y - h_tilde)
+    x_tilde = h_tilde
+    rho3 = -1*(last_W[0:n,0:n]@x_tilde)
+    #print(rho3.shape)
+    last_component = rho3[0,:]
+    #print(last_component)
+    rho2 = vertcat(rho2,last_component)
+    P_Lplus1 = R2
+    xandpbar = -R2_inv@rho2
+    return P_Lplus1, xandpbar
 
 def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P, last_W):
     """
