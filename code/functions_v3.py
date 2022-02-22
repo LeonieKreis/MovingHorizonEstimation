@@ -183,7 +183,7 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P,
                 noi_var = vertcat(noi_var,vk)
              # Add k-th matching constraint
             mc = vertcat(mc, Xk_end + vk - Sk)
-        obj = vertcat(obj, )
+        obj = vertcat(obj,obj_noi)
         w1 = vertcat(w1,noi_var)
         w1 = vertcat(w1,p)
     else:
