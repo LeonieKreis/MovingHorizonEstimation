@@ -68,7 +68,7 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     zeros_mr = np.zeros((n,n+m))
     c2 = np.concatenate((np.concatenate((zeros_or,zeros_mr)),last_W))
     #print(c2.shape)
-    m_l = -1*(np.concatenate((last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now)),axis=1))
+    m_l = -1*(horzcat(last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now))) #-1*(np.concatenate((last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now)),axis=1))
     #print(m_l.shape)
     b_row1 = np.concatenate((X_x(x_plus1,p_now),X_p(x_plus1,p_now)),axis=1)
     #print(b_row1.shape)
@@ -78,9 +78,9 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     #print('brow2',b_row2.shape)
     blocks = np.concatenate((b_row1,b_row2))
     lo_l = -1*(last_W@blocks)
-    c1 = np.concatenate((np.concatenate((last_P,m_l)),lo_l))
-    M_num = np.concatenate((c1,c2),axis = 1)
-    M = SX(M_num)
+    c1 = vertcat(vertcat(last_P,m_l),lo_l) #np.concatenate((np.concatenate((last_P,m_l)),lo_l))
+    M_num = horzcat(c1,c2)
+    M = MX(M_num)#SX(M_num)
     #print(M.shape)
     Q,R = qr(M)
     R2 = R[n+m:2*(n+m),n+m:2*(n+m)]
@@ -211,7 +211,7 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P,
     #print('w:', w1)
     #print(F1)
     #print(F2)
-    return F1,F2
+    return F1,F2, P_Lplus1
 
 def cnlls_solver(F1, F2, w0, itmax=1, tol=1e-7, ggn = True, show_iteration = False):
     """
@@ -362,7 +362,7 @@ def MHE(x0bar, p0bar, P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,si
         #print('k+N+1',k+N+1)
         #print(meas[:,k:k+N+1].shape)
         #,k+N:k+2*N-1
-        FF1,FF2 = MS_functions_MHE(T, N, x, p, xdot, meas[:,k:k+N+1], sigma,sigma2, rk, rk, last_P, last_W) # not debugged yet!
+        FF1,FF2,P_Lplus1 = MS_functions_MHE(T, N, x, p, xdot, meas[:,k:k+N+1], sigma,sigma2, rk[0:n], pk, last_P, last_W) # not debugged yet!
         
         #compute vector components of QP (dep on variable y)
         # later..
