@@ -105,6 +105,8 @@ def get_arrival_obj(n,m,P_Lplus1, xandpbar):
     arr = Function('arr',[vertcat(S,pp)],[arr_exp])
     return arr
 
+
+
 def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2,arr):
     """
     T = length of horizon
@@ -188,7 +190,7 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2,arr):
             else:
                 vk = MX.sym('v_'+str(k),n)
                 obj = vertcat(obj,S@(meas[:,k] - Sk))
-                obj_noi = vertcat(obj_noi,S@vk)
+                obj_noi = vertcat(obj_noi,S2@vk)
                 noi_var = vertcat(noi_var,vk)
              # Add k-th matching constraint
             mc = vertcat(mc, Xk_end + vk - Sk)
@@ -293,10 +295,13 @@ def cnlls_solver(F1, F2, w0, itmax=1, tol=1e-7, ggn = True, show_iteration = Fal
     
     return x_opt
 
-def MHE(x0bar, p0bar, P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,sigma2, W, ggn = False):
+
+
+##if this does not work, the old version is in v3###
+def MHE(P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,sigma2, W, ggn = False):
     '''
-    x0bar: initial guess for arrival cost state
-    p0bar: initial guess for arrival cost parameter
+    #x0bar: initial guess for arrival cost state
+    #p0bar: initial guess for arrival cost parameter
     P: initial guess for arrival covariance matrix
     r0: initial guess for states and p
     
@@ -321,6 +326,15 @@ def MHE(x0bar, p0bar, P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,si
     
     p_opt = []
     x_opt = []
+    
+    ss2 = [1/sigma2[i] for i in range(n)]
+    dd = np.diag(ss2)
+    last_V = MX(dd)
+    last_P = P
+    last_y = meas[:,0]
+    last_W = W
+    x_o = r0[0:n]
+    p_o = r0[r0.shape[0]-m:]
     
     rk = r0
     len_w = rk.shape[0]
@@ -353,18 +367,25 @@ def MHE(x0bar, p0bar, P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,si
         rkminus4 = np.zeros(n)
         rkminus5 = pk
         rkminus = vertcat(vertcat(vertcat(vertcat(rkminus1,rkminus2),rkminus3),rkminus4),rkminus5)
-        print('rk- shape: ',rkminus.shape)
+        #print('rk- shape: ',rkminus.shape)
         #Dkminus_y = meas[:,] will be measured later, not available yet
         
         # setup ms setting with variable y
-        last_P =0
-        last_W = 0
+        last_W = W
+        last_V = last_V
+        x_o = rk[0:n]
+        p_o = pk
         #print('k',k)
         #print('k+N+1',k+N+1)
         #print(meas[:,k:k+N+1].shape)
         #,k+N:k+2*N-1
-        FF1,FF2 = MS_functions_MHE(T, N, x, p, xdot, meas[:,k:k+N+1], sigma,sigma2, rk, rk, last_P, last_W) # not debugged yet!
         
+        P_Lplus1, xandpbar = arrival_cost_values(x,p,xdot,T,N,x_o, p_o, last_y, last_P,last_V, last_W)
+        arr = get_arrival_obj(n,m,P_Lplus1, xandpbar)
+        FF1,FF2 = MS_functions_MHE(T, N, x, p, xdot, meas[:,k:k+N+1], sigma,sigma2, arr) # not debugged yet!
+        
+        last_y = meas[:,k+1]
+        last_P =P_Lplus1
         #compute vector components of QP (dep on variable y)
         # later..
         #compute matrix components of QP
