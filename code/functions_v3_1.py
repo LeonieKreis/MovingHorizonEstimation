@@ -42,32 +42,23 @@ def generate_meas(x, p, xdot, T, sigma, p_true, M, x0):
 
 def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W):
     #print('Arrival cost not implemented yet!')
-    
     n = x.shape[0]
     m = p.shape[0]
-    
-    #test#
-    xx = SX.sym('xx',n)
-    px = SX.sym('px',m)
-    rhs_exp = xdot(xx,px)
-    #test ende
     
     x_now = x_opt[0:n] # x*(t_L)
     p_now = p_opt # p*
     #compute x*(t_L+1)
-    dae = {'x':xx, 'p':px, 'ode':rhs_exp}#xdot} 
-    opts = {'t0':0., 'tf':T/N}  
+    dae = {'x':x, 'p':p, 'ode':xdot} 
+    opts = {'t0':0, 'tf':T/N}  
     F = integrator('F', 'cvodes', dae, opts)
     x_plus1 = F(x0=x_now,p=p_now)['xf'] #x*(t_L+1)
     # compute X_x, X_p
-    x00 = SX.sym('x00',n)
-    p00 = SX.sym('p00',m)
+    x00 = MX.sym('x00',n)
+    p00 = MX.sym('p00',m)
     X_x_exp = jacobian(F(x0=x00,p=p00)['xf'],x00)
     X_p_exp = jacobian(F(x0=x00,p=p00)['xf'],p00)
     X_x = Function('X_x',[x00,p00],[X_x_exp])
     X_p = Function('X_p',[x00,p00],[X_p_exp]) # x00 later x_plus1 p00 later p_now
-    #X_x = X_x.expand()
-    #X_p = X_p.expand()
     H_x = X_x
     H_p = X_p
     #print('X_x',X_x(x_plus1,p_now).shape)
@@ -77,7 +68,7 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     zeros_mr = np.zeros((n,n+m))
     c2 = np.concatenate((np.concatenate((zeros_or,zeros_mr)),last_W))
     #print(c2.shape)
-    m_l = -1*(horzcat(last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now))) #-1*(np.concatenate((last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now)),axis=1))
+    m_l = -1*(np.concatenate((last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now)),axis=1))
     #print(m_l.shape)
     b_row1 = np.concatenate((X_x(x_plus1,p_now),X_p(x_plus1,p_now)),axis=1)
     #print(b_row1.shape)
@@ -87,11 +78,9 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     #print('brow2',b_row2.shape)
     blocks = np.concatenate((b_row1,b_row2))
     lo_l = -1*(last_W@blocks)
-    c1 = vertcat(vertcat(last_P,m_l),lo_l) #np.concatenate((np.concatenate((last_P,m_l)),lo_l))
-    M_num = horzcat(c1,c2)
-    M = SX(M_num)#SX(M_num)
-    ##M_fun = Function('M_fun',[x00,p00],[M])
-    ##MM = M_fun.expand()
+    c1 = np.concatenate((np.concatenate((last_P,m_l)),lo_l))
+    M_num = np.concatenate((c1,c2),axis = 1)
+    M = SX(M_num)
     #print(M.shape)
     Q,R = qr(M)
     R2 = R[n+m:2*(n+m),n+m:2*(n+m)]
@@ -109,7 +98,14 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     xandpbar = -R2_inv@rho2
     return P_Lplus1, xandpbar
 
-def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P, last_W):
+def get_arrival_obj(n,m,P_Lplus1, xandpbar):
+    S = SX.sym('S',n)
+    pp = SX.sym('pp',m)
+    arr_exp = P_Lplus1@(vertcat(S,pp)-xandpbar)
+    arr = Function('arr',[vertcat(S,pp)],[arr_exp])
+    return arr
+
+def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2,arr):
     """
     T = length of horizon
     N = Number of shooting intervals in the given horizon
@@ -121,7 +117,8 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P,
     sigma = variance of meas errors e.g. sigma = [s1,s2,s3,s4]
     sigma2 = variance of states e.g. sigma2 = [s1,s2,s3,s4]
     
-    new:
+    new: arr function (or expression?) of the arrival cost part of the objective taking one input (eg vertcat(S0,p))
+    not any more:
     x_opt= optimal end state of the last interval (computed in the last interval)
     p_opt = optimal parameter computed in the last interval
     last_P = P matrix from the last interval
@@ -143,7 +140,7 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P,
     #arr2 #todo
     
     # build integrator for whole shooting interval
-    dae = {'x':x, 'p':p, 'ode':xdot(x,p)} 
+    dae = {'x':x, 'p':p, 'ode':xdot} 
     opts = {'t0':0, 'tf':T/N}  
     F = integrator('F', 'cvodes', dae, opts)
     
@@ -163,18 +160,12 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P,
     w1 = []
     w1 = vertcat(w1,Sk) #vertcat(p,Sk)
     
-    
-    #set arrival cost term
-    last_V = S
-    last_y = meas[:,0]
-    
-    P_Lplus1, xandpbar = arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W)
-    arr = P_Lplus1@(vertcat(S0,p)-xandpbar)
-    
     #Setting objective
     obj = []
     obj_noi = []
     noi_var = []
+    arrival_cost = []
+    arrival_cost = vertcat(arrival_cost,arr(vertcat(S0,p)))
     # mc denotes the matching constraints
     mc=[]
     
@@ -202,7 +193,7 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P,
              # Add k-th matching constraint
             mc = vertcat(mc, Xk_end + vk - Sk)
         obj = vertcat(obj,obj_noi)
-        obj = vertcat(obj,arr)
+        obj = vertcat(obj, arrival_cost)
         w1 = vertcat(w1,noi_var)
         w1 = vertcat(w1,p)
     else:
@@ -222,7 +213,7 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2, x_opt, p_opt, last_P,
     #print('w:', w1)
     #print(F1)
     #print(F2)
-    return F1,F2, P_Lplus1
+    return F1,F2
 
 def cnlls_solver(F1, F2, w0, itmax=1, tol=1e-7, ggn = True, show_iteration = False):
     """
@@ -330,7 +321,6 @@ def MHE(x0bar, p0bar, P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,si
     
     p_opt = []
     x_opt = []
-    last_W = W
     
     rk = r0
     len_w = rk.shape[0]
@@ -367,13 +357,13 @@ def MHE(x0bar, p0bar, P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,si
         #Dkminus_y = meas[:,] will be measured later, not available yet
         
         # setup ms setting with variable y
-        last_P = P_Lplus1
-        #last_W = 0
+        last_P =0
+        last_W = 0
         #print('k',k)
         #print('k+N+1',k+N+1)
         #print(meas[:,k:k+N+1].shape)
         #,k+N:k+2*N-1
-        FF1,FF2,P_Lplus1 = MS_functions_MHE(T, N, x, p, xdot, meas[:,k:k+N+1], sigma,sigma2, rk[0:n], pk, last_P, last_W) # not debugged yet!
+        FF1,FF2 = MS_functions_MHE(T, N, x, p, xdot, meas[:,k:k+N+1], sigma,sigma2, rk, rk, last_P, last_W) # not debugged yet!
         
         #compute vector components of QP (dep on variable y)
         # later..
