@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import random
+import time
 
 def generate_meas(x, p, xdot, T, sigma, p_true, M, x0):
     """
@@ -355,6 +356,7 @@ def MHE(P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,sigma2, W, ggn =
     F = integrator('F', 'cvodes', dae, opts)
     
     for k in range(length_simulation):
+        toc = time.perf_counter()
         print('starting (time horizon) loop no. ', k+1)
         ## prep phase
         # update arrival cost (or in ms_fun)
@@ -426,5 +428,7 @@ def MHE(P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,sigma2, W, ggn =
             x_opt = vertcat(x_opt,rk[0:(N+1)*n])
         else:
             x_opt = vertcat(x_opt,xk)
-    
+        tic = time.perf_counter()
+        if k <=5:
+            print('needed time for loop '+str(k),tic-toc)
     return x_opt, p_opt
