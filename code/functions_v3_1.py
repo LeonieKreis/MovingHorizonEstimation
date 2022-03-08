@@ -46,11 +46,16 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     m = p.shape[0]
     
     x_now = x_opt[0:n] # x*(t_L)
+    #print('x_now',type(x_now))
     p_now = p_opt # p*
+    #print('p_now',type(p_now))
     #compute x*(t_L+1)
+    #print(type(x))
+    #print(type(p))
     dae = {'x':x, 'p':p, 'ode':xdot} 
     opts = {'t0':0, 'tf':T/N}  
     F = integrator('F', 'cvodes', dae, opts)
+    #print(F)
     x_plus1 = F(x0=x_now,p=p_now)['xf'] #x*(t_L+1)
     # compute X_x, X_p
     x00 = MX.sym('x00',n)
@@ -68,7 +73,7 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     zeros_mr = np.zeros((n,n+m))
     c2 = np.concatenate((np.concatenate((zeros_or,zeros_mr)),last_W))
     #print(c2.shape)
-    m_l = -1*(np.concatenate((last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now)),axis=1))
+    m_l = -1*(horzcat(last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now)))
     #print(m_l.shape)
     b_row1 = np.concatenate((X_x(x_plus1,p_now),X_p(x_plus1,p_now)),axis=1)
     #print(b_row1.shape)
@@ -78,11 +83,16 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     #print('brow2',b_row2.shape)
     blocks = np.concatenate((b_row1,b_row2))
     lo_l = -1*(last_W@blocks)
-    c1 = np.concatenate((np.concatenate((last_P,m_l)),lo_l))
-    M_num = np.concatenate((c1,c2),axis = 1)
-    M = SX(M_num)
-    #print(M.shape)
-    Q,R = qr(M)
+    c1 = vertcat(vertcat(last_P,m_l),lo_l)
+    M_num = horzcat(c1,c2)
+    M = MX(M_num)#SX(M_num)
+    #MSX = SX(M_num)
+    #print('M',M.shape)
+    S = SX.sym('S',M.shape[0],M.shape[1])
+    QQ, RR = qr(S)
+    expR = RR
+    QR = Function('QR',[S],[expR])
+    R = QR(M)
     R2 = R[n+m:2*(n+m),n+m:2*(n+m)]
     #print('R2.shape',R2.shape)
     R2_inv = inv(R2)
@@ -99,8 +109,8 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     return P_Lplus1, xandpbar
 
 def get_arrival_obj(n,m,P_Lplus1, xandpbar):
-    S = SX.sym('S',n)
-    pp = SX.sym('pp',m)
+    S = MX.sym('S',n)
+    pp = MX.sym('pp',m)
     arr_exp = P_Lplus1@(vertcat(S,pp)-xandpbar)
     arr = Function('arr',[vertcat(S,pp)],[arr_exp])
     return arr
