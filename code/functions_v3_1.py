@@ -6,6 +6,21 @@ import pandas as pd
 import random
 import time
 
+def simulate_pendulum(N,T,L,p_true,s0,x,p,rhs_exp):
+    x0 = s0 ## initial conditions from paper
+    Res1 = s0
+    dae = {'x': x, 'p': p, 'ode': rhs_exp}
+    opts = {'tf': T/N}
+    F = integrator('F', 'cvodes', dae, opts)
+    for i in range(L*N):
+        Fi = F(x0=s0, p=p_true)
+        Xk_end = Fi['xf']
+        # for k in range(1,M+1):
+        Res1 = vertcat(Res1,Xk_end[:,-1])
+        s0 = Xk_end[:,-1]
+    return Res1
+    
+
 def generate_meas(x, p, xdot, T, sigma, p_true, M, x0):
     """
     x = an MX.sym, state of the ODE
@@ -78,11 +93,13 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     #print(m_l.shape)
     b_row1 = np.concatenate((X_x(x_plus1,p_now),X_p(x_plus1,p_now)),axis=1)
     #print(b_row1.shape)
-    b_row22 = np.concatenate((np.zeros(n),np.ones(m)))
+    ############b_row22 = np.concatenate((np.zeros(n),np.ones(m)))
     #print(b_row22.shape)
-    b_row2 = np.reshape(b_row22,(1,m+n))
+    ##########b_row2 = np.reshape(b_row22,(1,m+n))
+    b_row2 = np.concatenate((np.zeros((m,n)),np.diag(np.ones(m))),axis=1)
     #print('brow2',b_row2.shape)
     blocks = np.concatenate((b_row1,b_row2))
+    #print(blocks.shape)
     lo_l = -1*(last_W@blocks)
     c1 = vertcat(vertcat(last_P,m_l),lo_l)
     M_num = horzcat(c1,c2)
@@ -102,7 +119,7 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     x_tilde = h_tilde
     rho3 = -1*(last_W[0:n,0:n]@x_tilde)
     #print(rho3.shape)
-    last_component = rho3[0,:]
+    last_component = rho3[0:0+m,:]
     #print(last_component)
     rho2 = vertcat(rho2,last_component)
     P_Lplus1 = R2
@@ -394,8 +411,7 @@ def MHE(P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,sigma2, W, ggn =
         
         P_Lplus1, xandpbar = arrival_cost_values(x,p,xdot,T,N,x_o, p_o, last_y, last_P,last_V, last_W)
         arr = get_arrival_obj(n,m,P_Lplus1, xandpbar)
-        FF1,FF2 = MS_functions_MHE(T, N, x, p, xdot, meas[:,k:k+N+1], sigma,sigma2, arr) # not debugged yet!
-        
+        FF1,FF2 = MS_functions_MHE(T, N, x, p, xdot, meas[:,k:k+N+1], sigma,sigma2, arr) 
         last_y = meas[:,k+1]
         last_P =P_Lplus1
         #compute vector components of QP (dep on variable y)
@@ -429,6 +445,6 @@ def MHE(P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,sigma2, W, ggn =
         else:
             x_opt = vertcat(x_opt,xk)
         tic = time.perf_counter()
-        if k <=5:
+        if k <=10:
             print('needed time for loop '+str(k),tic-toc)
     return x_opt, p_opt
