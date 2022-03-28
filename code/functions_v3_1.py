@@ -87,6 +87,7 @@ def arrival_cost_values(x,p,xdot,T,N,x_opt, p_opt, last_y, last_P,last_V, last_W
     # setup M
     zeros_or = np.zeros((n+m,n+m))
     zeros_mr = np.zeros((n,n+m))
+    #print(last_W)
     c2 = np.concatenate((np.concatenate((zeros_or,zeros_mr)),last_W))
     #print(c2.shape)
     m_l = -1*(horzcat(last_V@X_x(x_plus1,p_now),last_V@X_p(x_plus1,p_now)))
@@ -167,7 +168,7 @@ def MS_functions_MHE(T, N, x, p, xdot, meas, sigma,sigma2,arr):
     
     y = MX.sym('y',n) # observations are states
     #arr1 = MX.sym('arr1', n)
-    #arr2 #todo
+    arr = Function('arr',[vertcat(x,p)],[0]) ##this deletes the arrival cost term in the objective!!
     
     # build integrator for whole shooting interval
     dae = {'x':x, 'p':p, 'ode':xdot} 
@@ -445,6 +446,6 @@ def MHE(P, r0, T, N, length_simulation, x, p, xdot, meas, sigma,sigma2, W, ggn =
         else:
             x_opt = vertcat(x_opt,xk)
         tic = time.perf_counter()
-        if k <=10:
+        if k <=100:
             print('needed time for loop '+str(k),tic-toc)
     return x_opt, p_opt
